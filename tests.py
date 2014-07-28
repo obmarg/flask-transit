@@ -55,13 +55,13 @@ class FlaskTransitTests(TestCase):
     def test_transit_json_reading(self):
         self._reading_test({'hi': 'there',
                             'ls': (1, 2, 3),
-                            'aset': frozenset({1, 2, 3})},
+                            'aset': frozenset((1, 2, 3))},
                            'json')
 
     def test_transit_msgpack_reading(self):
         self._reading_test({'hi': 'there',
                             'ls': (1, 2, 3),
-                            'aset': frozenset({1, 2, 3})},
+                            'aset': frozenset((1, 2, 3))},
                            'msgpack')
 
     def _do_datetime_test(self, protocol):
