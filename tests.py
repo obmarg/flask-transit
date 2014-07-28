@@ -1,7 +1,8 @@
 import json
+from dateutil import tz
 from StringIO import StringIO
 from datetime import datetime
-from flask import Flask, request
+from flask import Flask, request, abort
 from flask.ext.transit import init_transit
 from flask.ext.testing import TestCase
 from transit.writer import Writer
@@ -27,6 +28,12 @@ def from_transit(in_data):
 def echo_transit():
     return to_transit(request.transit)
 
+@app.route('/expect_no_transit', methods=['POST'])
+def expect_no_transit():
+    if request.transit:
+        abort(400)
+    return 'ok'
+
 
 class FlaskTransitTests(TestCase):
     def create_app(self):
@@ -49,3 +56,15 @@ class FlaskTransitTests(TestCase):
         self._reading_test({'hi': 'there',
                             'ls': (1, 2, 3),
                             'aset': frozenset({1, 2, 3})})
+
+    def test_transit_datetime_reading(self):
+        self._reading_test({'date': datetime.now(tz.tzutc())})
+
+    def test_transit_ignores_json(self):
+        response = self.client.post(
+            '/expect_no_transit',
+            data='{"hi": "there"}',
+            headers={'content-type': 'application/json'}
+        )
+
+        self.assertEqual(response.status_code, 200)
