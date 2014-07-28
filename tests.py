@@ -41,6 +41,7 @@ class FlaskTransitTests(TestCase):
         return app
 
     def _reading_test(self, in_data):
+        # TODO: Need to test msgpack as well as json
         data = to_transit(in_data)
 
         response = self.client.post(
@@ -58,6 +59,8 @@ class FlaskTransitTests(TestCase):
                             'aset': frozenset({1, 2, 3})})
 
     def test_transit_datetime_reading(self):
+        # TODO: Could change this to use almostEqual instead, since
+        #       I reckon it's a floating point related failure.
         self._reading_test({'date': datetime.now(tz.tzutc())})
 
     def test_transit_ignores_json(self):

@@ -41,3 +41,9 @@ def init_transit(app):
     :param app:     The flask application object to initialise.
     '''
     app.request_class = make_request_class(app.request_class)
+
+
+# TODO: need a jsonify equivalent for returning a response w/ response type set
+# appropriately.
+# TODO: Thinking it could take options, but also look at current flask config to
+# get defaults.  (e.g. if Debug set then use json-verbose etc.)
