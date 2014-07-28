@@ -1,5 +1,10 @@
+from flask import make_response
 from werkzeug.utils import cached_property
 from transit.reader import Reader
+from transit.writer import Writer
+from StringIO import StringIO
+
+__all__ = ['init_transit', 'transition']
 
 
 class TransitRequestMixin(object):
@@ -43,7 +48,24 @@ def init_transit(app):
     app.request_class = make_request_class(app.request_class)
 
 
-# TODO: need a jsonify equivalent for returning a response w/ response type set
-# appropriately.
-# TODO: Thinking it could take options, but also look at current flask config to
-# get defaults.  (e.g. if Debug set then use json-verbose etc.)
+def _to_transit(in_data, protocol='json'):
+    io = StringIO()
+    writer = Writer(io, protocol)
+    writer.write(in_data)
+    return io.getvalue()
+
+
+def transition(data, protocol='json'):
+    '''
+    Converts data into a Transit response.
+
+    Equivalent to jsonify for transit.
+
+    :param data:        The data to convert
+    :param protocol:    The protocol to use.  Defaults to json.
+    '''
+    # TODO: thinking flask configuration should determine which
+    #       protocol to use for a default.
+    response = make_response(_to_transit(data, protocol))
+    response.headers['content-type'] = 'application/transit+' + protocol
+    return response
