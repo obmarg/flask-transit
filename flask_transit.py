@@ -45,6 +45,9 @@ def init_transit(app):
 
     :param app:     The flask application object to initialise.
     '''
+    # TODO: Think we need to accept read/write handlers as arguments here.
+    #       These can then be passed to make_request_class/stored on the
+    #       application object to be used by transition.
     app.request_class = make_request_class(app.request_class)
 
 
