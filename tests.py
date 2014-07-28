@@ -1,7 +1,7 @@
 import json
 from dateutil import tz
 from StringIO import StringIO
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, abort
 from flask.ext.transit import init_transit
 from flask.ext.testing import TestCase
@@ -64,10 +64,30 @@ class FlaskTransitTests(TestCase):
                             'aset': frozenset({1, 2, 3})},
                            'msgpack')
 
-    def test_transit_datetime_reading(self):
-        # TODO: Could change this to use almostEqual instead, since
-        #       I reckon it's a floating point related failure.
-        self._reading_test({'date': datetime.now(tz.tzutc())})
+    def _do_datetime_test(self, protocol):
+        # datetime tests need to be done slightly differently - using
+        # assertAlmostEqual instead.  This may be needed because datetimes are
+        # represented as floats under the hood?  Need to check that though.
+
+        in_data = {'x': datetime.now(tz=tz.tzutc())}
+        data = to_transit(in_data, protocol)
+
+        response = self.client.post(
+            '/echo_transit/' + protocol,
+            data=data,
+            headers={'content-type': 'application/transit+' + protocol}
+        )
+        self.assertAlmostEqual(
+            from_transit(response.data, protocol)['x'],
+            in_data['x'],
+            delta=timedelta(milliseconds=10)
+        )
+
+    def test_datetime_json(self):
+        self._do_datetime_test('json')
+
+    def test_datetime_msgpack(self):
+        self._do_datetime_test('msgpack')
 
     def test_transit_ignores_json(self):
         response = self.client.post(
