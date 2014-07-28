@@ -12,21 +12,21 @@ app = Flask('tests')
 init_transit(app)
 
 
-def to_transit(in_data):
+def to_transit(in_data, protocol='json'):
     io = StringIO()
-    writer = Writer(io, 'json')
+    writer = Writer(io, protocol)
     writer.write(in_data)
     return io.getvalue()
 
 
-def from_transit(in_data):
+def from_transit(in_data, protocol):
     io = StringIO(in_data)
-    return Reader().read(io)
+    return Reader(protocol).read(io)
 
 
-@app.route('/echo_transit', methods=['POST'])
-def echo_transit():
-    return to_transit(request.transit)
+@app.route('/echo_transit/<protocol>', methods=['POST'])
+def echo_transit(protocol):
+    return to_transit(request.transit, protocol)
 
 @app.route('/expect_no_transit', methods=['POST'])
 def expect_no_transit():
@@ -40,23 +40,29 @@ class FlaskTransitTests(TestCase):
         app.config['TESTING'] = True
         return app
 
-    def _reading_test(self, in_data):
-        # TODO: Need to test msgpack as well as json
-        data = to_transit(in_data)
+    def _reading_test(self, in_data, protocol):
+        data = to_transit(in_data, protocol)
 
         response = self.client.post(
-            '/echo_transit',
+            '/echo_transit/' + protocol,
             data=data,
-            headers={'content-type': 'application/transit+json'}
+            headers={'content-type': 'application/transit+' + protocol}
         )
 
         self.assertEqual(response.data, data)
-        self.assertEqual(from_transit(response.data), in_data)
+        self.assertEqual(from_transit(response.data, protocol), in_data)
 
-    def test_basic_transit_reading(self):
+    def test_transit_json_reading(self):
         self._reading_test({'hi': 'there',
                             'ls': (1, 2, 3),
-                            'aset': frozenset({1, 2, 3})})
+                            'aset': frozenset({1, 2, 3})},
+                           'json')
+
+    def test_transit_msgpack_reading(self):
+        self._reading_test({'hi': 'there',
+                            'ls': (1, 2, 3),
+                            'aset': frozenset({1, 2, 3})},
+                           'msgpack')
 
     def test_transit_datetime_reading(self):
         # TODO: Could change this to use almostEqual instead, since
