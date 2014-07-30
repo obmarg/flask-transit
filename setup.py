@@ -12,7 +12,7 @@ from setuptools import setup
 
 setup(
     name='Flask-Transit',
-    version='0.1',
+    version='0.1.0-pre',
     url='http://github.com/obmarg/flask-transit',
     license='BSD',
     author='Graeme Coupar',
