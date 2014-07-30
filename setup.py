@@ -19,7 +19,7 @@ setup(
     author_email='grambo@grambo.me.uk',
     description='A flask extension for working with transit data.',
     long_description=__doc__,
-    py_modules=['flask-transit'],
+    py_modules=['flask_transit'],
     zip_safe=False,
     include_package_data=False,
     platforms='any',
