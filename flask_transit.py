@@ -1,3 +1,5 @@
+import operator
+from functools import partial
 from flask import make_response, current_app
 from werkzeug.utils import cached_property
 from transit.reader import Reader
@@ -40,7 +42,7 @@ def make_request_class(base_class, read_handlers=None):
     '''
     class TransitRequest(base_class, TransitRequestMixin):
         READ_HANDLERS = read_handlers or {}
-        pass
+        BASE_REQUEST = base_class
 
     return TransitRequest
 
@@ -65,7 +67,7 @@ def _split_handlers(custom_handlers):
     return (write_handlers, read_handlers)
 
 
-def init_transit(app, custom_handlers):
+def init_transit(app, custom_handlers=None):
     '''
     Initialises a flask application object with Flask-Transit support
 
@@ -75,6 +77,7 @@ def init_transit(app, custom_handlers):
                             Where each handler implements the transit-python
                             read_handler and/or write_handler interface.
     '''
+    custom_handlers = custom_handlers or {}
     write_handlers, read_handlers = _split_handlers(custom_handlers)
 
     app.request_class = make_request_class(app.request_class, read_handlers)
@@ -109,3 +112,37 @@ def transition(data, protocol='json'):
     response = make_response(_to_transit(data, protocol, write_handlers))
     response.headers['content-type'] = 'application/transit+' + protocol
     return response
+
+
+_concat = partial(reduce, operator.concat)
+
+
+def _merge_dicts(*dicts):
+    ''' Merges some dictionaries '''
+    return dict(_concat(d.items() for d in dicts))
+
+
+def register_handlers(app, custom_handlers):
+    '''
+    Registers additional transit read/write handlers on an application.
+
+    The application must have already been initialised with init_transit.
+
+    :param app:             The application to register the handlers on.
+    :param custom_handlers: Extra read/write handlers.
+                            Should be a dictionary of {key: handler}.
+                            Where each handler implements the transit-python
+                            read_handler and/or write_handler interface.
+    '''
+    write_handlers, read_handlers = _split_handlers(custom_handlers)
+
+    write_handlers = _merge_dicts(app._transit_write_handlers, write_handlers)
+
+    if read_handlers:
+        read_handlers = _merge_dicts(read_handlers,
+                                     app.request_class.READ_HANDLERS)
+
+        app.request_class = make_request_class(app.request_class.BASE_REQUEST,
+                                               read_handlers)
+
+    app._transit_write_handlers = write_handlers
