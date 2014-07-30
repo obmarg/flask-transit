@@ -15,10 +15,10 @@ class TransitRequestMixin(object):
     MIME_TYPE_MAPPING = {'application/transit+json': 'json',
                          'application/transit+msgpack': 'msgpack'}
 
-    # READ_HANDLERS should be set to a tuple of (key_or_tag, f_val) pairs that
-    # will be passed to the Transit reader & writer instances. Usually these
-    # will be setup by the init_transit function.
-    READ_HANDLERS = []
+    # READ_HANDLERS should be set to a dict of {key: reader} pairs that will be
+    # passed to the Transit reader. Usually these will be setup by the
+    # init_transit function.
+    READ_HANDLERS = {}
 
     @cached_property
     def transit(self):
@@ -26,8 +26,9 @@ class TransitRequestMixin(object):
         if transit_protocol:
             reader = Reader(transit_protocol)
 
-            for key_or_tag, f_val in self.READ_HANDLERS:
-                reader.register(key_or_tag, f_val)
+            for read_handler in self.READ_HANDLERS.values():
+                # TODO: Documentation should mention that tag() is required.
+                reader.register(read_handler.tag(''), read_handler)
 
             return reader.read(self.stream)
 
@@ -38,34 +39,56 @@ def make_request_class(base_class, read_handlers=None):
     base.
     '''
     class TransitRequest(base_class, TransitRequestMixin):
-        READ_HANDLERS = read_handlers or []
+        READ_HANDLERS = read_handlers or {}
         pass
 
     return TransitRequest
 
 
-def init_transit(app, read_handlers=None, write_handlers=None):
+def _split_handlers(custom_handlers):
+    '''
+    Splits a custom_handlers dict into readers and writers.
+
+    :param custom_handlers:     A dict of custom handlers as passed to
+                                init_transit.
+
+    :returns:       A tuple (write_handlers_dict, read_handers_dict)
+    '''
+    write_handlers = {handled_type: handler
+                      for handled_type, handler in custom_handlers.items()
+                      if hasattr(handler, 'rep')}
+
+    read_handlers = {handled_type: handler
+                     for handled_type, handler in custom_handlers.items()
+                     if hasattr(handler, 'from_rep')}
+
+    return (write_handlers, read_handlers)
+
+
+def init_transit(app, custom_handlers):
     '''
     Initialises a flask application object with Flask-Transit support
 
     :param app:             The flask application object to initialise.
-    :param read_handlers:   Optional extra read handlers.  Should be a
-                            sequence of (key_or_tag, f_val) pairs.
-                            See transit-python reader for more details.
-    :param write_handlers:  Optional extra write handlers.  Should be a
-                            sequence of (key_or_tag, f_val) pairs.
-                            See transit-python writer for more details.
+    :param custom_handlers: Optional extra read/write handlers.
+                            Should be a dictionary of {key: handler}.
+                            Where each handler implements the transit-python
+                            read_handler and/or write_handler interface.
     '''
+    write_handlers, read_handlers = _split_handlers(custom_handlers)
+
     app.request_class = make_request_class(app.request_class, read_handlers)
     app._transit_write_handlers = write_handlers
 
 
 def _to_transit(in_data, protocol='json', write_handlers=None):
+    write_handlers = write_handlers or {}
+
     io = StringIO()
     writer = Writer(io, protocol)
 
-    for key_or_tag, f_val in (write_handlers or []):
-        writer.register(key_or_tag, f_val)
+    for key, write_handler in write_handlers.items():
+        writer.register(key, write_handler)
 
     writer.write(in_data)
     return io.getvalue()

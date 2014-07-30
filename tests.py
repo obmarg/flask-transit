@@ -17,7 +17,7 @@ class TestObj(object):
         return self.number == other.number
 
 
-class TestObjWriter(object):
+class TestObjHandler(object):
     @staticmethod
     def tag(_):
         return "testobj"
@@ -30,25 +30,20 @@ class TestObjWriter(object):
     def string_rep(test_obj):
         return str(test_obj.number)
 
-
-class TestObjReader(object):
     @staticmethod
     def from_rep(value):
         return TestObj(int(value))
 
 
 app = Flask('tests')
-# TODO: Thinking this config format for custom readers and writers may suck.
-# Either switch to a dict, or combined reader & writers?  Easy to do with mixins
-# if we really want to seperate read and write...
-init_transit(app, [("testobj", TestObjReader)], [(TestObj, TestObjWriter)])
+init_transit(app, {TestObj: TestObjHandler})
 
 
 def to_transit(in_data, protocol='json'):
     io = StringIO()
     writer = Writer(io, protocol)
 
-    writer.register(TestObj, TestObjWriter)
+    writer.register(TestObj, TestObjHandler)
 
     writer.write(in_data)
     return io.getvalue()
@@ -58,7 +53,7 @@ def from_transit(in_data, protocol):
     io = StringIO(in_data)
     reader = Reader(protocol)
 
-    reader.register("testobj", TestObjReader)
+    reader.register("testobj", TestObjHandler)
 
     return Reader(protocol).read(io)
 
