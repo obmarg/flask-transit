@@ -7,7 +7,7 @@ from transit.writer import Writer
 from StringIO import StringIO
 
 __version__ = "0.1"
-__all__ = ['init_transit', 'transition']
+__all__ = ['init_transit', 'transition', 'register_handlers']
 
 
 class TransitRequestMixin(object):
