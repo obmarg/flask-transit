@@ -1,47 +1,100 @@
-import json
+import os
 from dateutil import tz
 from StringIO import StringIO
 from datetime import datetime, timedelta
 from flask import Flask, request, abort
-from flask.ext.transit import init_transit, transition
+from flask.ext.transit import init_transit, transition, register_handlers
 from flask.ext.testing import TestCase
 from transit.writer import Writer
 from transit.reader import Reader
 
-app = Flask('tests')
-init_transit(app)
+
+class TestObj(object):
+    def __init__(self, number):
+        self.number = number
+
+    def __eq__(self, other):
+        return self.number == other.number
+
+class TestObj2(TestObj):
+    pass
+
+class TestObjHandler(object):
+    @staticmethod
+    def tag(_):
+        return "testobj"
+
+    @staticmethod
+    def rep(test_obj):
+        return test_obj.number
+
+    @staticmethod
+    def string_rep(test_obj):
+        return str(test_obj.number)
+
+    @staticmethod
+    def from_rep(value):
+        return TestObj(int(value))
+
+
+class TestObj2Handler(object):
+    @staticmethod
+    def tag(_):
+        return "testobj2"
+
+    @staticmethod
+    def from_rep(value):
+        return TestObj2(int(value))
+
+
+def make_app(name):
+    ''' Constructs a test app '''
+
+    app = Flask('tests')
+    # TODO: Thinking this config format for custom readers and writers may suck.
+    # Either switch to a dict, or combined reader & writers?  Easy to do with mixins
+    # if we really want to seperate read and write...
+    init_transit(app, {TestObj: TestObjHandler})
+
+    @app.route('/echo_transit/<protocol>', methods=['POST'])
+    def echo_transit(protocol):
+        return to_transit(request.transit, protocol)
+
+    @app.route('/echo_transition/<protocol>', methods=['POST'])
+    def echo_transition(protocol):
+        return transition(request.transit, protocol)
+
+    @app.route('/expect_no_transit', methods=['POST'])
+    def expect_no_transit():
+        if request.transit:
+            abort(400)
+        return 'ok'
+
+    return app
 
 
 def to_transit(in_data, protocol='json'):
     io = StringIO()
     writer = Writer(io, protocol)
+
+    writer.register(TestObj, TestObjHandler)
+
     writer.write(in_data)
     return io.getvalue()
 
 
 def from_transit(in_data, protocol):
     io = StringIO(in_data)
+    reader = Reader(protocol)
+
+    reader.register("testobj", TestObjHandler)
+
     return Reader(protocol).read(io)
-
-
-@app.route('/echo_transit/<protocol>', methods=['POST'])
-def echo_transit(protocol):
-    return to_transit(request.transit, protocol)
-
-
-@app.route('/echo_transition/<protocol>', methods=['POST'])
-def echo_transition(protocol):
-    return transition(request.transit, protocol)
-
-@app.route('/expect_no_transit', methods=['POST'])
-def expect_no_transit():
-    if request.transit:
-        abort(400)
-    return 'ok'
 
 
 class FlaskTransitTests(TestCase):
     def create_app(self):
+        app = make_app('test')
         app.config['TESTING'] = True
         return app
 
@@ -49,7 +102,7 @@ class FlaskTransitTests(TestCase):
         data = to_transit(in_data, protocol)
 
         response = self.client.post(
-            base_url + protocol,
+            os.path.join(base_url, protocol),
             data=data,
             headers={'content-type': 'application/transit+' + protocol}
         )
@@ -86,6 +139,18 @@ class FlaskTransitTests(TestCase):
                            '/echo_transition/',
                            'msgpack')
 
+    def test_custom_rw_json(self):
+        self._reading_test({'hi': 'there',
+                            'obj': TestObj(3)},
+                           '/echo_transition/',
+                           'json')
+
+    def test_custom_rw_msgpack(self):
+        self._reading_test({'hi': 'there',
+                            'obj': TestObj(100)},
+                           '/echo_transition/',
+                           'msgpack')
+
     def _do_datetime_test(self, protocol):
         # datetime tests need to be done slightly differently - using
         # assertAlmostEqual instead.  This may be needed because datetimes are
@@ -119,3 +184,21 @@ class FlaskTransitTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+
+    def test_register_handlers_adds_handlers(self):
+        register_handlers(self.app,
+                          {TestObj2: TestObj2Handler})
+
+        self._reading_test({'hi': 'there',
+                            'obj': TestObj2(100)},
+                           '/echo_transition/',
+                           'msgpack')
+
+    def test_register_handlers_keeps_existing_handlers(self):
+        register_handlers(self.app,
+                          {TestObj2: TestObj2Handler})
+
+        self._reading_test({'hi': 'there',
+                            'obj': TestObj(100)},
+                           '/echo_transition/',
+                           'msgpack')
