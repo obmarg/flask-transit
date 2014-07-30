@@ -6,6 +6,7 @@ from transit.reader import Reader
 from transit.writer import Writer
 from StringIO import StringIO
 
+__version__ = "0.1"
 __all__ = ['init_transit', 'transition']
 
 
