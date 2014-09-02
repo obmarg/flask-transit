@@ -9,7 +9,7 @@ with
 
 Flask-transit can be installed by running:
 
-    pip install --use-wheel --pre flask-transi
+    pip install --use-wheel --pre flask-transit
 
 ### Use
 
